@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use crate::{error::ParseError, parse::parse_program};
+use crate::parse::parse_program;
 
 #[derive(Debug)]
 pub struct Program {
@@ -8,10 +8,10 @@ pub struct Program {
 }
 
 impl FromStr for Program {
-	type Err = ParseError;
+	type Err = color_eyre::Report;
 
 	fn from_str(s: &str) -> Result<Self, Self::Err> {
-		Ok(parse_program(s)?)
+		parse_program(s)
 	}
 }
 

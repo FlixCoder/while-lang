@@ -1,26 +1,27 @@
+use color_eyre::eyre::eyre;
 use nom::{
 	branch::alt,
 	bytes::complete::{tag, tag_no_case},
 	character::complete::{
-		alpha0, alphanumeric1, anychar, char as nom_char, digit1, multispace0, multispace1,
+		alpha1, alphanumeric0, anychar, char as nom_char, digit1, multispace0, multispace1,
 	},
 	combinator::{map, map_res, not, opt, recognize},
-	error::Error,
-	multi::{many0, separated_list0},
-	sequence::{delimited, pair, tuple},
-	Err,
+	error::{convert_error, VerboseError},
+	multi::{many0, many1, separated_list0},
+	sequence::{delimited, pair, terminated, tuple},
+	Finish,
 };
 
 use crate::language::*;
 
-type MyIResult<'a, T> = nom::IResult<&'a str, T>;
+type MyIResult<'a, O> = nom::IResult<&'a str, O, VerboseError<&'a str>>;
 
 fn nom_digit(input: &str) -> MyIResult<Digit> {
 	map(map_res(digit1, |digit: &str| digit.parse()), Digit)(input)
 }
 
 fn nom_ident(input: &str) -> MyIResult<Ident> {
-	map(recognize(pair(alpha0, alphanumeric1)), |ident: &str| Ident(ident.to_owned()))(input)
+	map(recognize(pair(alpha1, alphanumeric0)), |ident: &str| Ident(ident.to_owned()))(input)
 }
 
 fn nom_fn_type(input: &str) -> MyIResult<FnType> {
@@ -44,7 +45,7 @@ fn nom_expression(input: &str) -> MyIResult<Expression> {
 	let expr_digit = map(nom_digit, Expression::Digit);
 	let expr_ident = map(nom_ident, Expression::Variable);
 	let expr_fn_call = map(nom_fn_call, Expression::FnCall);
-	alt((expr_digit, expr_ident, expr_fn_call))(input)
+	alt((expr_fn_call, expr_digit, expr_ident))(input)
 }
 
 fn nom_assignment(input: &str) -> MyIResult<Assignment> {
@@ -90,13 +91,13 @@ fn nom_scope_item(input: &str) -> MyIResult<ScopeItem> {
 	let item_assign = map(nom_assignment, ScopeItem::Assignment);
 	let item_increment = map(nom_increment, ScopeItem::Increment);
 	let item_decrement = map(nom_decrement, ScopeItem::Decrement);
-	let item_fn = map(nom_fn_call, ScopeItem::FnCall);
+	let item_fn = map(terminated(nom_fn_call, nom_char(';')), ScopeItem::FnCall);
 	let item_while = map(nom_while, ScopeItem::While);
-	alt((item_assign, item_increment, item_decrement, item_fn, item_while))(input)
+	alt((item_fn, item_while, item_assign, item_increment, item_decrement))(input)
 }
 
 fn nom_scope(input: &str) -> MyIResult<Scope> {
-	let (output, items) = many0(delimited(multispace0, nom_scope_item, multispace0))(input)?;
+	let (output, items) = many1(delimited(multispace0, nom_scope_item, multispace0))(input)?;
 	let scope = Scope { items };
 	Ok((output, scope))
 }
@@ -129,13 +130,14 @@ fn nom_program_item(input: &str) -> MyIResult<ProgramItem> {
 }
 
 fn nom_program(input: &str) -> MyIResult<Program> {
-	let (output, items) = many0(delimited(multispace0, nom_program_item, multispace0))(input)?;
+	let (rest, items) = many0(delimited(multispace0, nom_program_item, multispace0))(input)?;
+	let (output, _) = not(anychar)(rest)?;
 	let program = Program { items };
 	Ok((output, program))
 }
 
-pub fn parse_program(input: &str) -> Result<Program, Err<Error<&str>>> {
-	let (rest, program) = nom_program(input)?;
-	not(anychar)(rest)?;
+pub fn parse_program(input: &str) -> color_eyre::Result<Program> {
+	let (_, program) =
+		nom_program(input).finish().map_err(|err| eyre!(convert_error(input, err)))?;
 	Ok(program)
 }
