@@ -1,0 +1,30 @@
+x = 5;
+
+num Add(x, y):
+    z = x;
+    z += y;
+    return z;
+
+num div(x, y, z):
+    while a != 0:
+        while a != 0:
+            b += 5;
+        #
+        quertz = 5;
+    #
+    return b;
+
+x += 2;
+y = 3;
+
+while a != 0:
+    while a != 0:
+        b += 5;
+    #
+    quertz = 5;
+#
+
+y += x;
+z = add(x, y);
+
+WriteLine(z);
